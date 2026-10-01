@@ -77,7 +77,7 @@ namespace SwipeTranslate
             }
             client = new HttpClient(handler);
             client.Timeout = TimeSpan.FromSeconds(Provider == "ollama" ? OllamaTimeoutSeconds : 12);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("BabelTower/0.1");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("BabelTower/0.2");
         }
 
         public async Task<string> TranslateAsync(string text, string sourceLanguage,
@@ -280,6 +280,23 @@ namespace SwipeTranslate
                 case "cs": return "捷克语";
                 case "uk": return "乌克兰语";
                 case "hi": return "印地语";
+                case "ms": return "马来语";
+                case "tl": return "菲律宾语";
+                case "km": return "高棉语";
+                case "my": return "缅甸语";
+                case "fa": return "波斯语";
+                case "gu": return "古吉拉特语";
+                case "ur": return "乌尔都语";
+                case "te": return "泰卢固语";
+                case "mr": return "马拉地语";
+                case "he": return "希伯来语";
+                case "bn": return "孟加拉语";
+                case "ta": return "泰米尔语";
+                case "bo": return "藏语";
+                case "kk": return "哈萨克语";
+                case "mn": return "蒙古语";
+                case "ug": return "维吾尔语";
+                case "yue": return "粤语";
                 default: throw new InvalidOperationException("巴别塔暂不支持这个目标语言，请在设置中重新选择。");
             }
         }

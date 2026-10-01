@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Web.Script.Serialization;
 
+[assembly: System.Reflection.AssemblyVersion("0.2.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.2.0.0")]
+
 namespace SwipeTranslate
 {
     static class Program
@@ -40,6 +43,9 @@ namespace SwipeTranslate
         public string SourceLanguage = "auto";
         public bool CoverSelection = true;
         public bool RecognizeBlueSelection = true;
+        public bool ShowRightPanel = true;
+        public bool EnableInputButton = true;
+        public bool EnableBrowserBridge = true;
         public static string PathName { get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json"); } }
         public static Options Load()
         {
@@ -77,7 +83,8 @@ namespace SwipeTranslate
         internal Options Copy()
         {
             return new Options { SourceLanguage = SourceLanguage, TargetLanguage = TargetLanguage,
-                CoverSelection = CoverSelection, RecognizeBlueSelection = RecognizeBlueSelection };
+                CoverSelection = CoverSelection, RecognizeBlueSelection = RecognizeBlueSelection,
+                ShowRightPanel = ShowRightPanel, EnableInputButton = EnableInputButton, EnableBrowserBridge = EnableBrowserBridge };
         }
         internal void CopyFrom(Options other)
         {
@@ -86,6 +93,9 @@ namespace SwipeTranslate
             TargetLanguage = other.TargetLanguage;
             CoverSelection = other.CoverSelection;
             RecognizeBlueSelection = other.RecognizeBlueSelection;
+            ShowRightPanel = other.ShowRightPanel;
+            EnableInputButton = other.EnableInputButton;
+            EnableBrowserBridge = other.EnableBrowserBridge;
         }
         internal void Validate()
         {
@@ -107,7 +117,22 @@ namespace SwipeTranslate
             new LanguageChoice("繁体中文", "zh-TW"), new LanguageChoice("英文", "en"),
             new LanguageChoice("日文", "ja"), new LanguageChoice("韩文", "ko"),
             new LanguageChoice("法文", "fr"), new LanguageChoice("德文", "de"),
-            new LanguageChoice("西班牙文", "es"), new LanguageChoice("俄文", "ru") };
+            new LanguageChoice("西班牙文", "es"), new LanguageChoice("俄文", "ru"),
+            new LanguageChoice("葡萄牙文", "pt"), new LanguageChoice("土耳其文", "tr"),
+            new LanguageChoice("阿拉伯文", "ar"), new LanguageChoice("泰文", "th"),
+            new LanguageChoice("意大利文", "it"), new LanguageChoice("越南文", "vi"),
+            new LanguageChoice("马来文", "ms"), new LanguageChoice("印尼文", "id"),
+            new LanguageChoice("菲律宾文", "tl"), new LanguageChoice("印地文", "hi"),
+            new LanguageChoice("波兰文", "pl"), new LanguageChoice("捷克文", "cs"),
+            new LanguageChoice("荷兰文", "nl"), new LanguageChoice("高棉文", "km"),
+            new LanguageChoice("缅甸文", "my"), new LanguageChoice("波斯文", "fa"),
+            new LanguageChoice("古吉拉特文", "gu"), new LanguageChoice("乌尔都文", "ur"),
+            new LanguageChoice("泰卢固文", "te"), new LanguageChoice("马拉地文", "mr"),
+            new LanguageChoice("希伯来文", "he"), new LanguageChoice("孟加拉文", "bn"),
+            new LanguageChoice("泰米尔文", "ta"), new LanguageChoice("乌克兰文", "uk"),
+            new LanguageChoice("藏文", "bo"), new LanguageChoice("哈萨克文", "kk"),
+            new LanguageChoice("蒙古文", "mn"), new LanguageChoice("维吾尔文", "ug"),
+            new LanguageChoice("粤语", "yue") };
         internal static bool Contains(string code, bool source)
         {
             foreach (var language in All)
@@ -129,6 +154,10 @@ namespace SwipeTranslate
         readonly System.Windows.Forms.Timer lifetime = new System.Windows.Forms.Timer();
         readonly CancellationTokenSource startup = new CancellationTokenSource();
         readonly Task modelPreparation;
+        readonly SemaphoreSlim translationGate = new SemaphoreSlim(1, 1);
+        readonly RightTranslationPanel rightPanel;
+        readonly InputTranslationController inputButton;
+        BrowserTranslationBridge browserBridge;
         readonly ToolStripMenuItem pause = new ToolStripMenuItem("暂停划选翻译");
         CancellationTokenSource pending;
         Task<SelectionReadResult> captureTask;
@@ -154,6 +183,8 @@ namespace SwipeTranslate
             pause.Click += delegate { enabled = !enabled; pause.Text = enabled ? "暂停划选翻译" : "恢复划选翻译"; Dismiss(); };
             menu.Items.Add(pause);
             menu.Items.Add("设置 · 语言与显示", null, delegate { ShowSettings(); });
+            menu.Items.Add("打开右侧译窗", null, delegate { rightPanel.ShowAtRight(); });
+            menu.Items.Add("网页翻译 · 连接浏览器", null, delegate { ShowBrowserSetup(); });
             menu.Items.Add("查看运行状态", null, delegate
             {
                 MessageBox.Show("当前状态：" + statusText + "\n\n检测到鼠标按下：" + mouse.DownCount +
@@ -181,7 +212,45 @@ namespace SwipeTranslate
             lifetime.Start();
             ReportStage("started", "正在准备本地翻译");
             modelPreparation = PrepareLocalModelAsync();
+            rightPanel = new RightTranslationPanel(TranslateSharedAsync, () => options.Copy(), ApplySettings);
+            inputButton = new InputTranslationController(TranslateSharedAsync, () => options.Copy(), delegate(string label)
+            {
+                RunUiAsync(delegate { ReportStage("input", label); return true; });
+            });
+            inputButton.Enabled = options.EnableInputButton;
+            try
+            {
+                browserBridge = new BrowserTranslationBridge(() => RunUiAsync(() => options.Copy()),
+                    changed => RunUiAsync(delegate { ApplySettings(changed); return true; }), TranslateSharedAsync);
+                if (options.EnableBrowserBridge) browserBridge.Start();
+            }
+            catch (Exception) { browserBridge = null; }
             if (showWelcome) ShowSettings();
+        }
+
+        Task<T> RunUiAsync<T>(Func<T> work)
+        {
+            var completion = new TaskCompletionSource<T>();
+            try
+            {
+                dispatcher.BeginInvoke((Action)delegate
+                {
+                    try { completion.TrySetResult(work()); }
+                    catch (Exception error) { completion.TrySetException(error); }
+                });
+            }
+            catch (Exception error) { completion.TrySetException(error); }
+            return completion.Task;
+        }
+
+        async Task<string> TranslateSharedAsync(string text, string source, string target, CancellationToken token)
+        {
+            Task prepared = await Task.WhenAny(modelPreparation, Task.Delay(130000, token));
+            token.ThrowIfCancellationRequested();
+            if (prepared != modelPreparation) throw new TimeoutException("本地模型正在准备，请稍后重试。");
+            await translationGate.WaitAsync(token);
+            try { return await engine.TranslateAsync(text, source, target, token); }
+            finally { translationGate.Release(); }
         }
 
         async Task PrepareLocalModelAsync()
@@ -211,6 +280,15 @@ namespace SwipeTranslate
             Dismiss();
             options.CopyFrom(changed);
             mouse.EnableImageProbe = options.RecognizeBlueSelection;
+            if (inputButton != null) inputButton.Enabled = options.EnableInputButton;
+            if (inputButton != null) inputButton.CancelPending();
+            if (!options.ShowRightPanel && rightPanel != null) rightPanel.Hide();
+            if (rightPanel != null) rightPanel.RefreshOptions();
+            if (browserBridge != null)
+            {
+                if (options.EnableBrowserBridge) browserBridge.Start();
+                else browserBridge.Stop();
+            }
             lastText = null;
             lastWindow = IntPtr.Zero;
         }
@@ -371,7 +449,7 @@ namespace SwipeTranslate
                 // Give the actual translation its own full timeout after warmup.
                 visibleUntil = DateTime.UtcNow.AddSeconds(50);
                 ReportStage("translating", "正在本地翻译");
-                string result = await engine.TranslateAsync(text, requestOptions.SourceLanguage, requestOptions.TargetLanguage, cancellation.Token);
+                string result = await TranslateSharedAsync(text, requestOptions.SourceLanguage, requestOptions.TargetLanguage, cancellation.Token);
                 if (ticket != revision || Native.GetForegroundWindow() != window) return;
                 // The user may change the selection or the app may move it while
                 // a translation is running. Never cover an obsolete range.
@@ -424,6 +502,7 @@ namespace SwipeTranslate
                 visibleUntil = covered ? DateTime.MaxValue : DateTime.UtcNow.AddSeconds(25);
                 if (!covered) popup.Present(result, snapshot.Bounds, point, false, false);
                 else popup.Hide();
+                if (options.ShowRightPanel) rightPanel.PresentResult(text, result, requestOptions.SourceLanguage, requestOptions.TargetLanguage);
                 ReportStage(covered ? "covered" : "popup", covered ? "译文已覆盖显示" : "完整译文已显示在浮窗");
                 TestEvidence.RecordTranslation(window, covered ? inline.Bounds : popup.Bounds, text, result);
             }
@@ -473,8 +552,34 @@ namespace SwipeTranslate
         void ShowSettings()
         {
             Dismiss();
-            if (settings == null || settings.IsDisposed) settings = new SettingsWindow(options, ApplySettings, OpenFixture);
+            if (settings == null || settings.IsDisposed) settings = new SettingsWindow(options, ApplySettings, OpenFixture,
+                delegate { rightPanel.ShowAtRight(); }, ShowBrowserSetup);
+            settings.LoadOptions(options);
             settings.Show(); settings.Activate();
+        }
+        void ShowBrowserSetup()
+        {
+            using (var dialog = new Form { Text = "巴别塔 · 网页翻译", ClientSize = new Size(500, 265),
+                StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, Font = new Font("Microsoft YaHei UI", 9.5f), BackColor = Color.White })
+            {
+                string folder = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "browser-extension"));
+                var text = new Label { Location = new Point(20, 18), Size = new Size(460, 90),
+                    Text = "Chrome / Edge 扩展提供网页一键翻译、还原原文和输入框旁的「译」。\n\n在浏览器扩展管理页开启开发者模式，加载下面的扩展文件夹；\n再把连接码填到扩展的小窗口，点击保存连接。" };
+                var open = new Button { Text = "打开扩展文件夹", Location = new Point(20, 118), Size = new Size(150, 30) };
+                open.Click += delegate
+                {
+                    if (Directory.Exists(folder)) Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+                    else MessageBox.Show("这个版本没有附带扩展文件夹，请解压完整的 Windows 发布包。", "巴别塔");
+                };
+                var code = new TextBox { ReadOnly = true, Location = new Point(20, 165), Size = new Size(460, 28),
+                    Text = browserBridge == null ? "连接码尚未创建，请检查程序文件夹是否可以写入。" : browserBridge.PairingCode };
+                var note = new Label { Location = new Point(20, 203), Size = new Size(460, 46), ForeColor = Color.DimGray,
+                    Text = browserBridge != null && browserBridge.Running ? "连接已开启。连接码只用于本机扩展，请勿公开。\n网页和输入内容仅在点击翻译时读取，在本机处理。" :
+                        (browserBridge != null && browserBridge.Failure != null ? browserBridge.Failure : "请在设置里开启「浏览器网页翻译连接」，并保存。") };
+                dialog.Controls.AddRange(new Control[] { text, open, code, note });
+                dialog.ShowDialog();
+            }
         }
         protected override void ExitThreadCore()
         {
@@ -485,6 +590,9 @@ namespace SwipeTranslate
             escape.Dispose();
             mouse.BeforeProbe -= HideBeforeProbe;
             mouse.Dispose();
+            if (inputButton != null) inputButton.Dispose();
+            if (rightPanel != null) rightPanel.Dispose();
+            if (browserBridge != null) browserBridge.Dispose();
             tray.Visible = false; tray.Dispose();
             popup.Dispose(); inline.Dispose(); engine.Dispose(); dispatcher.Dispose(); startup.Dispose();
             if (settings != null) settings.Dispose();
@@ -626,14 +734,18 @@ namespace SwipeTranslate
         readonly RadioButton cover = new RadioButton();
         readonly RadioButton floating = new RadioButton();
         readonly CheckBox recognize = new CheckBox();
+        readonly CheckBox right = new CheckBox();
+        readonly CheckBox input = new CheckBox();
+        readonly CheckBox browser = new CheckBox();
         readonly Label status = new Label();
         readonly Action<Options> apply;
 
-        public SettingsWindow(Options current, Action<Options> apply, Action fixture)
+        public SettingsWindow(Options current, Action<Options> apply, Action fixture,
+            Action showRight = null, Action showBrowser = null)
         {
             this.apply = apply;
-            Text = "巴别塔";
-            ClientSize = new Size(420, 458); StartPosition = FormStartPosition.CenterScreen;
+            Text = "巴别塔 · 本地增强版 0.2.0";
+            ClientSize = new Size(420, 592); StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false;
             Font = new Font("Microsoft YaHei UI", 9.5f);
             BackColor = Color.White;
@@ -660,16 +772,23 @@ namespace SwipeTranslate
             display.Controls.Add(cover); display.Controls.Add(floating);
             recognize.Name = "LocalRecognition"; recognize.Text = "读取不到文字时，本地识别蓝色选区";
             recognize.AutoSize = true; recognize.Location = new Point(25, 274);
-            var detail = new Label { Text = "点击别处或按 Esc 收起译文。原文内容继续保留。\n识别与翻译都在本机完成，不使用剪贴板。\n覆盖空间不足时会用浮窗；部分界面仍不支持。", Location = new Point(25, 308), Size = new Size(372, 57), ForeColor = Color.DimGray };
+            right.Name = "RightPanelEnabled"; right.Text = "划选翻译同时保留在右侧译窗"; right.AutoSize = true; right.Location = new Point(25, 305);
+            input.Name = "InputButtonEnabled"; input.Text = "可编辑输入框旁显示「译」按钮"; input.AutoSize = true; input.Location = new Point(25, 336);
+            browser.Name = "BrowserBridgeEnabled"; browser.Text = "浏览器网页翻译连接（需要扩展）"; browser.AutoSize = true; browser.Location = new Point(25, 367);
+            var detail = new Label { Text = "划选覆盖保留原文；输入框「译」会替换草稿，不发送。\n识别与翻译都在本机完成，不读取剪贴板。\n网页翻译和网页输入按钮请先连接浏览器扩展。", Location = new Point(25, 403), Size = new Size(372, 57), ForeColor = Color.DimGray };
+            var panel = new Button { Text = "打开右侧译窗", Location = new Point(24, 470), Size = new Size(180, 30) };
+            panel.Click += delegate { if (showRight != null) showRight(); };
+            var web = new Button { Text = "网页翻译 · 连接浏览器", Location = new Point(216, 470), Size = new Size(180, 30) };
+            web.Click += delegate { if (showBrowser != null) showBrowser(); };
             status.Name = "SaveStatus"; status.Text = "修改后点击保存，下一次划选立即生效。";
-            status.Location = new Point(25, 370); status.Size = new Size(372, 22); status.ForeColor = Color.DimGray;
-            var save = new Button { Name = "SaveSettings", Text = "保存并生效", Location = new Point(24, 402), Size = new Size(116, 31) };
+            status.Location = new Point(25, 506); status.Size = new Size(372, 22); status.ForeColor = Color.DimGray;
+            var save = new Button { Name = "SaveSettings", Text = "保存并生效", Location = new Point(24, 534), Size = new Size(116, 31) };
             save.Click += delegate { TrySaveDraft(); };
-            var demo = new Button { Text = "打开测试页", Location = new Point(152, 402), Size = new Size(116, 31) };
+            var demo = new Button { Text = "打开测试页", Location = new Point(152, 534), Size = new Size(116, 31) };
             demo.Click += delegate { fixture(); };
-            var close = new Button { Text = "收起到托盘", Location = new Point(280, 402), Size = new Size(116, 31) };
+            var close = new Button { Text = "收起到托盘", Location = new Point(280, 534), Size = new Size(116, 31) };
             close.Click += delegate { Hide(); };
-            var author = new LinkLabel { Name = "AuthorLink", Text = "Twitter  @HanJaKKK", Location = new Point(25, 437), AutoSize = true };
+            var author = new LinkLabel { Name = "AuthorLink", Text = "Twitter  @HanJaKKK", Location = new Point(25, 571), AutoSize = true };
             author.Links.Add(9, 9, "https://twitter.com/HanJaKKK");
             // No navigation occurs until the user deliberately clicks this link.
             author.LinkClicked += delegate(object sender, LinkLabelLinkClickedEventArgs e)
@@ -678,7 +797,7 @@ namespace SwipeTranslate
                 catch { status.Text = "无法打开浏览器，请手动访问 Twitter @HanJaKKK。"; }
             };
             Controls.AddRange(new Control[] { heading, subtitle, toChinese, toEnglish, sourceLabel, targetLabel,
-                source, target, display, recognize, detail, status, save, demo, close, author });
+                source, target, display, recognize, right, input, browser, detail, panel, web, status, save, demo, close, author });
             LoadOptions(current);
             EventHandler edited = delegate
             {
@@ -687,6 +806,7 @@ namespace SwipeTranslate
             };
             source.SelectedIndexChanged += edited; target.SelectedIndexChanged += edited;
             cover.CheckedChanged += edited; floating.CheckedChanged += edited; recognize.CheckedChanged += edited;
+            right.CheckedChanged += edited; input.CheckedChanged += edited; browser.CheckedChanged += edited;
             AcceptButton = save;
             FormClosing += delegate(object sender, FormClosingEventArgs e) { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
         }
@@ -707,6 +827,9 @@ namespace SwipeTranslate
             cover.Checked = current.CoverSelection;
             floating.Checked = !current.CoverSelection;
             recognize.Checked = current.RecognizeBlueSelection;
+            right.Checked = current.ShowRightPanel;
+            input.Checked = current.EnableInputButton;
+            browser.Checked = current.EnableBrowserBridge;
         }
         internal Options ReadDraft()
         {
@@ -714,7 +837,8 @@ namespace SwipeTranslate
             var targetLanguage = target.SelectedItem as LanguageChoice;
             var draft = new Options { SourceLanguage = sourceLanguage == null ? null : sourceLanguage.Code,
                 TargetLanguage = targetLanguage == null ? null : targetLanguage.Code,
-                CoverSelection = cover.Checked, RecognizeBlueSelection = recognize.Checked };
+                CoverSelection = cover.Checked, RecognizeBlueSelection = recognize.Checked,
+                ShowRightPanel = right.Checked, EnableInputButton = input.Checked, EnableBrowserBridge = browser.Checked };
             draft.Validate();
             return draft;
         }
@@ -748,7 +872,7 @@ namespace SwipeTranslate
             var reading = new RichTextBox { ReadOnly = true, Text = "This is a large job, so I will work in stages.\nThe original text stays unchanged.\n这项工作很大，所以我会分阶段完成。\n识别与翻译都在本机完成。", Location = new Point(25, 70), Size = new Size(690, 150), Font = new Font("Microsoft YaHei UI", 14), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(247, 249, 252), DetectUrls = false };
             var editableTitle = new Label { Text = "输入框也可以测试：", Location = new Point(24, 242), AutoSize = true };
             var editable = new TextBox { Text = "Good morning. Have a wonderful day.", Location = new Point(25, 280), Size = new Size(690, 45), Font = new Font("Segoe UI", 16) };
-            var note = new Label { Text = "这是一张测试页；巴别塔不修改原文、不改动剪贴板。", Location = new Point(24, 335), AutoSize = true, ForeColor = Color.DimGray };
+            var note = new Label { Text = "划选覆盖保留原文；输入框「译」替换草稿，不发送，不读取剪贴板。", Location = new Point(24, 335), AutoSize = true, ForeColor = Color.DimGray };
             Controls.Add(title); Controls.Add(reading); Controls.Add(editableTitle); Controls.Add(editable); Controls.Add(note);
         }
     }
