@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>巴别塔</title><link rel="stylesheet" href="ui.css"></head>
+<body class="popup"><main>
+  <header><h1>巴别塔</h1><span class="local">本地翻译</span></header>
+  <p id="connection" role="status">正在连接本机…</p>
+  <div class="direction"><label>原文<select id="source" disabled></select></label><span aria-hidden="true">→</span><label>译文<select id="target" disabled></select></label></div>
+  <p class="hint">方向跟随小窗口，在这里保存也会同步修改。</p>
+  <button id="saveDirection" class="secondary" disabled>保存翻译方向</button>
+  <button id="translatePage" class="primary" disabled>一键翻译当前网页</button>
+  <div class="row"><button id="restorePage" class="secondary">还原原文</button><button id="stopPage" class="secondary" disabled>停止翻译</button></div>
+  <p id="pageState" class="hint" role="status">只翻译网页正文，输入框里的草稿请点旁边的“译”。</p>
+  <p id="message" class="message" role="status"></p>
+  <button id="openOptions" class="link">连接设置与使用说明</button>
+  <footer>By <a href="https://x.com/HanJaKKK" target="_blank" rel="noreferrer">@HanJaKKK</a></footer>
+</main><script src="core.js"></script><script src="ui.js"></script></body></html>

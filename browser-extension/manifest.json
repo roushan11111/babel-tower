@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "巴别塔 · 本地网页翻译",
+  "version": "0.2.0",
+  "description": "连接本机巴别塔：一键翻译网页，在输入框旁点击译替换草稿。By @HanJaKKK。",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "巴别塔", "default_popup": "popup.html" },
+  "options_page": "options.html",
+  "content_scripts": [{
+    "matches": ["https://*/*", "http://*/*"],
+    "js": ["core.js", "content.js"],
+    "run_at": "document_idle",
+    "all_frames": false
+  }],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:17863"
+  }
+}

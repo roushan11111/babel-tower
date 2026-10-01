@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>巴别塔 · 连接设置</title><link rel="stylesheet" href="ui.css"></head>
+<body class="options"><main>
+  <header><h1>巴别塔</h1><span class="local">浏览器连接</span></header>
+  <p>先运行巴别塔，在小窗口开启浏览器连接，然后复制配对码。</p>
+  <label>本机配对码<input id="pairingToken" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴小窗口中的配对码"></label>
+  <p class="hint">配对码只保存在这个浏览器的扩展本地设置里。已有连接时，留空可保留原配对码。</p>
+  <label class="checkbox"><input id="inputButtonsEnabled" type="checkbox" checked>在网页输入框右边显示“译”</label>
+  <button id="saveConnection" class="primary">保存并检查连接</button>
+  <p id="connection" role="status">正在连接本机…</p>
+  <div class="direction"><label>原文<select id="source" disabled></select></label><span aria-hidden="true">→</span><label>译文<select id="target" disabled></select></label></div>
+  <button id="saveDirection" class="secondary" disabled>保存翻译方向</button>
+  <p id="message" class="message" role="status"></p>
+  <h2>怎么使用</h2>
+  <ol><li>点浏览器工具栏的巴别塔，选择“一键翻译当前网页”；点击“还原原文”恢复。</li><li>写完一句话，点输入框右边的“译”。译文留在输入框，扩展不会点击发送。</li><li>翻译过程中继续修改草稿或切换输入框，这次译文会放弃写入。</li></ol>
+  <p class="hint">只连接本机 127.0.0.1:17863，不使用剪贴板、不上传云端。只翻译你主动点击的正文或输入框；密码、验证码、代码和特殊编辑器会跳过。</p>
+  <p class="hint">浏览器内部页面、商店页面、PDF、内嵌框（iframe）、图片文字及部分复杂编辑器暂不支持。网页更新后需要再次点击翻译。</p>
+  <footer>By <a href="https://x.com/HanJaKKK" target="_blank" rel="noreferrer">@HanJaKKK</a> · MIT</footer>
+</main><script src="core.js"></script><script src="ui.js"></script></body></html>
