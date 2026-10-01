@@ -1,4 +1,4 @@
 interface:
-  display_name: "Babel Tower / 巴别塔"
-  short_description: "Build and run local Windows selection translation"
-  default_prompt: "Use $babel-tower to set up and launch local English-to-Chinese selection translation on this Windows computer."
+  display_name: "巴别塔 / Babel Tower · 增强版"
+  short_description: "Set up local selection, webpage and draft translation"
+  default_prompt: "Use $babel-tower to set up the enhanced local translator and connect webpage and input translation on this Windows computer."
