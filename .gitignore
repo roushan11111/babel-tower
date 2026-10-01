@@ -1,0 +1,10 @@
+/dist/
+/work/
+*.exe
+*.dll
+*.zip
+*.gguf
+*.download
+settings.json
+*.log
+*diagnostic*.json
