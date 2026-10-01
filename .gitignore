@@ -1,10 +1,13 @@
 /dist/
 /work/
+/releases/
 *.exe
 *.dll
 *.zip
 *.gguf
 *.download
 settings.json
+browser-bridge.json
+browser-bridge.json.tmp
 *.log
 *diagnostic*.json
