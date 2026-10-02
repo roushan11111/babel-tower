@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Web.Script.Serialization;
 
-[assembly: System.Reflection.AssemblyVersion("0.2.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.2.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.2.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.2.3.0")]
 
 namespace SwipeTranslate
 {
@@ -164,6 +164,7 @@ namespace SwipeTranslate
         Task<CapturedSelection> imageTask;
         Task<SelectionSnapshot> imageRecheckTask;
         bool enabled = true;
+        bool modelReady;
         int revision;
         IntPtr selectionWindow;
         DateTime visibleUntil;
@@ -180,10 +181,15 @@ namespace SwipeTranslate
             tray.Icon = SystemIcons.Information;
             tray.Text = "巴别塔：正在准备本地翻译…";
             var menu = new ContextMenuStrip();
-            pause.Click += delegate { enabled = !enabled; pause.Text = enabled ? "暂停划选翻译" : "恢复划选翻译"; Dismiss(); };
+            pause.Click += delegate
+            {
+                enabled = !enabled; pause.Text = enabled ? "暂停划选翻译" : "恢复划选翻译";
+                Dismiss();
+                if (rightPanel != null) rightPanel.SetLauncherStatus(enabled, modelReady, statusText);
+            };
             menu.Items.Add(pause);
             menu.Items.Add("设置 · 语言与显示", null, delegate { ShowSettings(); });
-            menu.Items.Add("打开右侧译窗", null, delegate { rightPanel.ShowAtRight(); });
+            menu.Items.Add("显示悬浮按钮", null, delegate { rightPanel.ShowLauncherAtRight(); });
             menu.Items.Add("网页翻译 · 连接浏览器", null, delegate { ShowBrowserSetup(); });
             menu.Items.Add("查看运行状态", null, delegate
             {
@@ -213,6 +219,9 @@ namespace SwipeTranslate
             ReportStage("started", "正在准备本地翻译");
             modelPreparation = PrepareLocalModelAsync();
             rightPanel = new RightTranslationPanel(TranslateSharedAsync, () => options.Copy(), ApplySettings);
+            rightPanel.SettingsRequested += ShowSettings;
+            rightPanel.SetLauncherStatus(enabled, modelReady, statusText);
+            rightPanel.SyncLauncher(options.ShowRightPanel);
             inputButton = new InputTranslationController(TranslateSharedAsync, () => options.Copy(), delegate(string label)
             {
                 RunUiAsync(delegate { ReportStage("input", label); return true; });
@@ -282,7 +291,7 @@ namespace SwipeTranslate
             mouse.EnableImageProbe = options.RecognizeBlueSelection;
             if (inputButton != null) inputButton.Enabled = options.EnableInputButton;
             if (inputButton != null) inputButton.CancelPending();
-            if (!options.ShowRightPanel && rightPanel != null) rightPanel.Hide();
+            if (rightPanel != null) rightPanel.SyncLauncher(options.ShowRightPanel);
             if (rightPanel != null) rightPanel.RefreshOptions();
             if (browserBridge != null)
             {
@@ -302,7 +311,11 @@ namespace SwipeTranslate
                 // Queue the UI work so the keyboard callback returns immediately.
                 dispatcher.BeginInvoke((Action)delegate
                 {
-                    if (!dispatcher.IsDisposed) Dismiss();
+                    if (!dispatcher.IsDisposed)
+                    {
+                        Dismiss();
+                        if (rightPanel != null && rightPanel.Visible) rightPanel.CollapsePanel();
+                    }
                 });
             }
             catch (ObjectDisposedException) { }
@@ -340,6 +353,9 @@ namespace SwipeTranslate
         void ReportStage(string stage, string label)
         {
             statusText = label;
+            if (stage == "ready") modelReady = true;
+            else if (stage == "model_not_ready" || stage == "model_slow") modelReady = false;
+            if (rightPanel != null) rightPanel.SetLauncherStatus(enabled, modelReady, label);
             if (!dispatcher.IsDisposed) tray.Text = "巴别塔：" + label;
             RuntimeDiagnostic.Write(stage, mouse == null ? 0 : mouse.DownCount,
                 mouse == null ? 0 : mouse.SelectionCount, options.RecognizeBlueSelection);
@@ -553,7 +569,7 @@ namespace SwipeTranslate
         {
             Dismiss();
             if (settings == null || settings.IsDisposed) settings = new SettingsWindow(options, ApplySettings, OpenFixture,
-                delegate { rightPanel.ShowAtRight(); }, ShowBrowserSetup);
+                delegate { rightPanel.ShowLauncherAtRight(); }, ShowBrowserSetup);
             settings.LoadOptions(options);
             settings.Show(); settings.Activate();
         }
@@ -744,7 +760,7 @@ namespace SwipeTranslate
             Action showRight = null, Action showBrowser = null)
         {
             this.apply = apply;
-            Text = "巴别塔 · 本地增强版 0.2.0";
+            Text = "巴别塔 · 本地增强版 0.2.3";
             ClientSize = new Size(420, 592); StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false;
             Font = new Font("Microsoft YaHei UI", 9.5f);
@@ -772,11 +788,11 @@ namespace SwipeTranslate
             display.Controls.Add(cover); display.Controls.Add(floating);
             recognize.Name = "LocalRecognition"; recognize.Text = "读取不到文字时，本地识别蓝色选区";
             recognize.AutoSize = true; recognize.Location = new Point(25, 274);
-            right.Name = "RightPanelEnabled"; right.Text = "划选翻译同时保留在右侧译窗"; right.AutoSize = true; right.Location = new Point(25, 305);
+            right.Name = "RightPanelEnabled"; right.Text = "显示右侧悬浮「译」按钮"; right.AutoSize = true; right.Location = new Point(25, 305);
             input.Name = "InputButtonEnabled"; input.Text = "可编辑输入框旁显示「译」按钮"; input.AutoSize = true; input.Location = new Point(25, 336);
             browser.Name = "BrowserBridgeEnabled"; browser.Text = "浏览器网页翻译连接（需要扩展）"; browser.AutoSize = true; browser.Location = new Point(25, 367);
             var detail = new Label { Text = "划选覆盖保留原文；输入框「译」会替换草稿，不发送。\n识别与翻译都在本机完成，不读取剪贴板。\n网页翻译和网页输入按钮请先连接浏览器扩展。", Location = new Point(25, 403), Size = new Size(372, 57), ForeColor = Color.DimGray };
-            var panel = new Button { Text = "打开右侧译窗", Location = new Point(24, 470), Size = new Size(180, 30) };
+            var panel = new Button { Text = "显示悬浮按钮", Location = new Point(24, 470), Size = new Size(180, 30) };
             panel.Click += delegate { if (showRight != null) showRight(); };
             var web = new Button { Text = "网页翻译 · 连接浏览器", Location = new Point(216, 470), Size = new Size(180, 30) };
             web.Click += delegate { if (showBrowser != null) showBrowser(); };
@@ -796,8 +812,10 @@ namespace SwipeTranslate
                 try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); }
                 catch { status.Text = "无法打开浏览器，请手动访问 Twitter @HanJaKKK。"; }
             };
+            var douyin = new Label { Name = "DouyinAuthor", Text = "抖音  YZRJ88", Location = new Point(243, 571),
+                AutoSize = true, ForeColor = Color.FromArgb(75, 89, 105) };
             Controls.AddRange(new Control[] { heading, subtitle, toChinese, toEnglish, sourceLabel, targetLabel,
-                source, target, display, recognize, right, input, browser, detail, panel, web, status, save, demo, close, author });
+                source, target, display, recognize, right, input, browser, detail, panel, web, status, save, demo, close, author, douyin });
             LoadOptions(current);
             EventHandler edited = delegate
             {
@@ -958,8 +976,21 @@ namespace SwipeTranslate
                     {
                         DownCount++;
                         down = point;
+                        downWindow = Native.GetAncestor(Native.WindowFromPoint(input.pt), 2);
+                        if (downWindow == IntPtr.Zero) downWindow = Native.GetForegroundWindow();
+                        // The launcher deliberately leaves the external app
+                        // foreground. Identify the actual hit window before
+                        // probing, so its drag cannot become an OCR gesture.
+                        if (IsOwnWindow(downWindow) && !(Control.FromHandle(downWindow) is InlineOverlay))
+                        {
+                            pressed = false; probe = null; probeNeedsRefresh = false;
+                            lastUpTick = 0;
+                            return Native.CallNextHookEx(hook, code, wParam, lParam);
+                        }
                         var before = BeforeProbe;
                         if (before != null) before(point);
+                        // Re-read after hiding the click-through cover so the
+                        // probe still targets the original document below it.
                         downWindow = Native.GetAncestor(Native.WindowFromPoint(input.pt), 2);
                         if (downWindow == IntPtr.Zero) downWindow = Native.GetForegroundWindow();
                         probe = EnableImageProbe ? SelectionImageReader.CreateProbe(downWindow, down) : null;
@@ -1004,6 +1035,13 @@ namespace SwipeTranslate
             return Native.CallNextHookEx(hook, code, wParam, lParam);
         }
         void Raise(bool candidate, Point point, IntPtr window) { var handler = Gesture; if (handler != null) handler(candidate, down, point, window, candidate ? probe : null); }
+        internal static bool IsOwnWindow(IntPtr window)
+        {
+            if (window == IntPtr.Zero) return false;
+            uint processId;
+            Native.GetWindowThreadProcessId(window, out processId);
+            return processId == Process.GetCurrentProcess().Id;
+        }
         public void RefreshIfIdle()
         {
             bool buttonDown = (Native.GetAsyncKeyState(1) & 0x8000) != 0;

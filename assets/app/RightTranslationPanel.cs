@@ -14,6 +14,10 @@ namespace SwipeTranslate
         readonly Func<string, string, string, CancellationToken, Task<string>> translate;
         readonly Func<Options> getOptions;
         readonly Action<Options> applyOptions;
+        readonly FloatingTranslationButton launcher;
+        bool launcherPositioned;
+        public event Action SettingsRequested;
+        internal FloatingTranslationButton Launcher { get { return launcher; } }
         readonly ComboBox source = new ComboBox();
         readonly ComboBox target = new ComboBox();
         readonly CheckBox pin = new CheckBox();
@@ -48,16 +52,22 @@ namespace SwipeTranslate
             this.translate = translate;
             this.getOptions = getOptions;
             this.applyOptions = applyOptions;
-            Text = "巴别塔 · 右侧译窗";
+            Text = "巴别塔 · 悬浮翻译面板";
             Name = "RightTranslationPanel";
             ShowInTaskbar = false;
-            FormBorderStyle = FormBorderStyle.SizableToolWindow;
+            FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
-            ClientSize = new Size(382, 646);
+            ClientSize = new Size(382, 590);
             MinimumSize = new Size(326, 498);
             BackColor = Color.White;
             Font = new Font("Microsoft YaHei UI", 9.5f);
             TopMost = true;
+            launcher = new FloatingTranslationButton(delegate { TogglePanel(Screen.FromControl(launcher).WorkingArea); },
+                delegate { var handler = SettingsRequested; if (handler != null) handler(); });
+            launcher.Docked += delegate
+            {
+                if (Visible && !disposingPanel) PlaceByLauncher(launcher.Bounds, Screen.FromControl(launcher).WorkingArea);
+            };
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(14),
                 ColumnCount = 1, RowCount = 6, BackColor = Color.White };
@@ -66,9 +76,17 @@ namespace SwipeTranslate
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
             var heading = new Label { Text = "巴别塔  Babel Tower", Dock = DockStyle.Fill,
                 Font = new Font(Font.FontFamily, 14, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft };
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
+            var collapse = new Button { Name = "CollapseTranslationPanel", Text = "收起", Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 5, 0, 7) };
+            collapse.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 231);
+            collapse.Click += delegate { CollapsePanel(); };
+            header.Controls.Add(heading, 0, 0); header.Controls.Add(collapse, 1, 0);
             var labels = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
             labels.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             labels.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -94,7 +112,7 @@ namespace SwipeTranslate
             pin.AutoSize = true; pin.Margin = new Padding(0, 7, 8, 0);
             pin.CheckedChanged += delegate { TopMost = pin.Checked; };
             var align = new Button { Name = "AlignRightPanel", Text = "靠右", Size = new Size(62, 28), Margin = new Padding(0, 2, 0, 0) };
-            align.Click += delegate { PlaceAtRight(Screen.FromControl(this).WorkingArea); };
+            align.Click += delegate { PlaceByLauncher(launcher.Bounds, Screen.FromControl(launcher).WorkingArea); };
             tools.Controls.Add(save); tools.Controls.Add(pin); tools.Controls.Add(align);
 
             tabs.Name = "PanelTranslationTabs"; tabs.Dock = DockStyle.Fill; tabs.Margin = new Padding(0, 4, 0, 0);
@@ -105,21 +123,26 @@ namespace SwipeTranslate
             selectedTab.Enter += delegate { selectedTab.Text = "划选译文"; };
             BuildSelectionTab(); BuildManualTab();
 
-            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             languageStatus.Name = "PanelLanguageStatus"; languageStatus.Text = "本地 Hy-MT2";
             languageStatus.ForeColor = Color.DimGray; languageStatus.Dock = DockStyle.Fill;
             languageStatus.TextAlign = ContentAlignment.MiddleLeft;
-            var author = new LinkLabel { Name = "PanelAuthorLink", Text = "@HanJaKKK", Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleRight };
+            var author = new LinkLabel { Name = "PanelAuthorLink", Text = "X  @HanJaKKK", Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft };
             author.LinkClicked += delegate
             {
                 try { Process.Start(new ProcessStartInfo("https://x.com/HanJaKKK") { UseShellExecute = true }); }
                 catch { languageStatus.Text = "请手动访问 @HanJaKKK。"; }
             };
-            footer.Controls.Add(languageStatus, 0, 0); footer.Controls.Add(author, 1, 0);
-            layout.Controls.Add(heading, 0, 0); layout.Controls.Add(labels, 0, 1);
+            var douyin = new Label { Name = "PanelDouyinAuthor", Text = "抖音  YZRJ88", Dock = DockStyle.Fill,
+                ForeColor = Color.FromArgb(75, 89, 105), TextAlign = ContentAlignment.MiddleRight };
+            footer.Controls.Add(languageStatus, 0, 0); footer.SetColumnSpan(languageStatus, 2);
+            footer.Controls.Add(author, 0, 1); footer.Controls.Add(douyin, 1, 1);
+            layout.Controls.Add(header, 0, 0); layout.Controls.Add(labels, 0, 1);
             layout.Controls.Add(languages, 0, 2); layout.Controls.Add(tools, 0, 3);
             layout.Controls.Add(tabs, 0, 4); layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
@@ -281,11 +304,9 @@ namespace SwipeTranslate
                 return;
             }
             UpdateSelectionResult(original, translated, sourceLanguage, targetLanguage);
-            if (!Visible)
-            {
-                PlaceAtRight(Screen.FromPoint(Cursor.Position).WorkingArea);
-                Show();
-            }
+            // Retain results quietly: receiving a selection must not expand
+            // the panel or steal focus from the source application.
+            launcher.SetUnread(!Visible);
         }
 
         internal void UpdateSelectionResult(string original, string translated, string sourceLanguage, string targetLanguage)
@@ -300,11 +321,56 @@ namespace SwipeTranslate
         public void ShowAtRight()
         {
             if (IsDisposed || disposingPanel) return;
+            ShowLauncherAtRight();
+            if (!Visible) TogglePanel(Screen.FromControl(launcher).WorkingArea);
+            else { BringToFront(); Activate(); }
+        }
+
+        public void ShowLauncherAtRight()
+        {
+            SyncLauncher(true);
+        }
+
+        public void SyncLauncher(bool enabled, Rectangle? workingArea = null)
+        {
+            if (IsDisposed || disposingPanel) return;
+            if (!enabled) { CollapsePanel(); launcher.Hide(); return; }
+            Rectangle area = workingArea ?? (launcherPositioned ? Screen.FromRectangle(launcher.Bounds).WorkingArea : Screen.FromPoint(Cursor.Position).WorkingArea);
+            launcher.PlaceAtRight(area, launcherPositioned ? launcher.Top : area.Top + (area.Height - launcher.Height) / 2);
+            launcherPositioned = true;
+            if (!launcher.Visible) launcher.Show();
+        }
+
+        public void SetLauncherStatus(bool enabled, bool ready, string label)
+        {
+            if (!IsDisposed && !disposingPanel) launcher.SetStatus(enabled, ready, label);
+        }
+
+        internal void TogglePanel(Rectangle workingArea, bool activate = true)
+        {
+            if (IsDisposed || disposingPanel) return;
+            if (Visible) { CollapsePanel(); return; }
             RefreshOptions();
-            PlaceAtRight(Visible ? Screen.FromControl(this).WorkingArea : Screen.FromPoint(Cursor.Position).WorkingArea);
-            if (!Visible) Show();
+            PlaceByLauncher(launcher.Bounds, workingArea);
+            launcher.SetUnread(false);
+            Show();
             BringToFront();
-            Activate();
+            if (activate) Activate();
+        }
+
+        internal void CollapsePanel()
+        {
+            CancelManualTranslation();
+            Hide();
+        }
+
+        internal void PlaceByLauncher(Rectangle anchor, Rectangle workingArea)
+        {
+            PlaceAtRight(workingArea);
+            int left = Math.Max(workingArea.Left, anchor.Left - Width - 10);
+            left = Math.Min(left, workingArea.Right - Width);
+            int top = Math.Max(workingArea.Top, Math.Min(anchor.Top - 12, workingArea.Bottom - Height));
+            Location = new Point(left, top);
         }
 
         internal void PlaceAtRight(Rectangle workingArea)
@@ -396,13 +462,14 @@ namespace SwipeTranslate
 
         protected override void OnVisibleChanged(EventArgs e)
         {
+            if (Visible && launcher != null) launcher.SetUnread(false);
             if (!Visible && pending != null) CancelManualTranslation();
             base.OnVisibleChanged(e);
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == Keys.Escape) { CancelManualTranslation(); Hide(); return true; }
+            if (keyData == Keys.Escape) { CollapsePanel(); return true; }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
@@ -423,6 +490,7 @@ namespace SwipeTranslate
             {
                 disposingPanel = true;
                 CancelManualTranslation();
+                launcher.Dispose();
             }
             base.Dispose(disposing);
         }
