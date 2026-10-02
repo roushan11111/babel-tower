@@ -13,7 +13,7 @@ $taskArguments = @('/nologo', '/target:winexe', '/platform:x64', '/langversion:5
     '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', '/r:System.Net.Http.dll', '/r:System.Web.Extensions.dll',
     "/r:$taskFramework\WPF\UIAutomationClient.dll", "/r:$taskFramework\WPF\UIAutomationTypes.dll", "/r:$taskFramework\WPF\WindowsBase.dll",
     "$taskSource\Program.cs", "$taskSource\InlineOverlay.cs", "$taskSource\SelectionReader.cs", "$taskSource\TranslationEngine.cs", "$taskSource\SelectionImageReader.cs", "$taskSource\LocalSelectionOcr.cs",
-    "$taskSource\RightTranslationPanel.cs", "$taskSource\InputTranslateButton.cs", "$taskSource\BrowserTranslationBridge.cs")
+    "$taskSource\RightTranslationPanel.cs", "$taskSource\FloatingTranslationButton.cs", "$taskSource\InputTranslateButton.cs", "$taskSource\BrowserTranslationBridge.cs")
 & $taskCompiler @taskArguments
 if ($LASTEXITCODE -ne 0) { throw 'Babel Tower compilation failed.' }
 Get-Item -LiteralPath $taskExecutable | Select-Object FullName,Length
