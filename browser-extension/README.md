@@ -1,6 +1,6 @@
 # 巴别塔 · 浏览器扩展
 
-连接本机巴别塔增强版，在 Chrome / Edge 中使用网页翻译和输入框旁的“译”。作者：[@HanJaKKK](https://x.com/HanJaKKK)，MIT 许可。
+连接本机巴别塔增强版，在 Chrome / Edge 中使用网页翻译和输入框旁的“译”。作者：X / Twitter [@HanJaKKK](https://x.com/HanJaKKK) · 抖音 YZRJ88，MIT 许可。
 
 ## 安装与配对
 

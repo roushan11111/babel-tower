@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "巴别塔 · 本地网页翻译",
   "version": "0.2.0",
-  "description": "连接本机巴别塔：一键翻译网页，在输入框旁点击译替换草稿。By @HanJaKKK。",
+  "description": "连接本机巴别塔：一键翻译网页，在输入框旁点击译替换草稿。By @HanJaKKK · 抖音 YZRJ88。",
   "minimum_chrome_version": "111",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["http://127.0.0.1/*"],
