@@ -8,4 +8,4 @@ are not included in the source repository or download packages.
 - Inference runtime: [Ollama](https://github.com/ollama/ollama), installed separately from its official distribution.
 - Windows UI Automation, WinForms and Windows.Media.Ocr: supplied by Windows/.NET. Available OCR languages depend on the installed Windows language packs.
 
-Author: [@HanJaKKK](https://x.com/HanJaKKK).
+Author: [@HanJaKKK on X / Twitter](https://x.com/HanJaKKK) · Douyin YZRJ88.

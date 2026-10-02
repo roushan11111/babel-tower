@@ -1,4 +1,40 @@
-# Validation for v0.2.0
+# Validation for v0.2.3
+
+## v0.2.3 author attribution
+
+Date: 2026-10-01. Added the user-provided Douyin account `YZRJ88` alongside the existing Twitter attribution in settings, the expanded panel, extension UI and documentation. It is plain account text; no unverified profile URL is provided.
+
+- Production sources compile as **0.2.3.0**. The settings and panel client controls were rendered without showing a test window or reading user content. Both account labels were visually checked for complete display; native ComboBox captions were rendered from their real control text where native printing omitted them.
+- The local app was replaced with the compiled build and restarted with its settings window. Saved settings remained byte-for-byte unchanged.
+- This is a text/layout update. The earlier 61-check results remain evidence for the preceding behavior changes; they were not reported as a new v0.2.3 full regression run.
+
+## Earlier v0.2.2 local evidence
+
+## v0.2.2 original launcher appearance
+
+Date: 2026-10-01. The launcher now uses a deep-blue rounded tile, an original stepped-tower drawing and an internal cyan status line. The earlier pink circle, large translation glyph and external check badge were removed. Gesture handling and panel behavior are unchanged.
+
+- All production sources compile as **0.2.2.0**; the existing **61 production-control checks passed again** with controlled translation delegates and test windows outside the physical screens.
+- The new production-control preview was visually inspected. It includes the tower, BABEL label and status line; it is an offscreen render, not a desktop capture.
+- The local app was replaced with the checked build and restarted. The saved settings remained byte-for-byte unchanged. The updated skill and Windows packages contain the current source/preview; historical packages are retained separately.
+- The physical mouse-hook and mixed-DPI validation boundaries documented below remain unchanged.
+
+## Earlier v0.2.1 local evidence
+
+## v0.2.1 local floating entry
+
+Date: 2026-10-01. The right-side entry is now a compact, borderless circular launcher. New selection results update retained content without opening the panel. Clicking opens a borderless panel beside the launcher; collapse/Esc retains the draft and language choices.
+
+- The full production sources compile as Windows x64 .NET Framework application version **0.2.1.0**.
+- **61 isolated production-control checks passed:** 32 existing panel checks and 29 floating-entry checks. These cover explicit opening/collapse, no automatic opening after selection results, drag versus click, capture-loss state reset, right-edge placement on negative-origin and small synthetic monitors, enable/disable, unread state, preservation of manual drafts/language choices, cancellation and stale responses, ownership guards and disposal. Translation delegates were controlled stubs; no network requests or user settings writes occurred.
+- All test windows were shown outside the physical screens. Explicit nonactivating test opening preserved the user's foreground window. This is component evidence, not a physical mouse-hook end-to-end test.
+- The actual local v0.2.1 app was started in background mode. Read-only inspection confirmed its **64 × 64** launcher visible at the desktop's right edge and its process responsive. The existing settings file remained byte-for-byte unchanged, including the user's translation direction. A read-only local readiness check confirmed Ollama and the verified model alias.
+- `assets/floating-launcher-preview.png` and `assets/right-panel-preview.png` are offscreen renders of production controls with synthetic content. They were visually inspected and do not show user-selected text or a user's external application.
+- Physical drag/click interaction, display removal and mixed-DPI monitors have not been manually verified. An unexpected mouse-capture loss resets and redocks the button, but does not reposition an already open panel until the next normal dock/open action. The application's existing system-DPI mode is retained.
+
+These records describe local builds and checks; public-release artifacts are listed separately on GitHub Releases. Previous model, browser-extension and compatibility evidence below belongs to the earlier release.
+
+## Earlier v0.2.0 evidence
 
 Date: 2026-10-01. v0.2.0 unifies the existing local enhanced selection translator with a right panel, native draft button and paired browser extension. The records below distinguish isolated component checks, actual local-model calls, browser fixtures and earlier user observations.
 
